@@ -1,12 +1,17 @@
 from __future__ import absolute_import
-from itertools import izip_longest
-import Queue
+from itertools import zip_longest
+import queue
+
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+except ImportError:
+    pass
 
 import MySQLdb as mysql
 from MySQLdb.cursors import DictCursor
 
 from dejavu.database import Database
-
 
 class SQLDatabase(Database):
     """
@@ -291,6 +296,8 @@ class SQLDatabase(Database):
 
         with self.cursor() as cur:
             for split_values in grouper(values, 1000):
+                split_values = list(split_values)
+
                 # Create our IN part of the query
                 query = self.SELECT_MULTIPLE
                 query = query % ', '.join(['UNHEX(%s)'] * len(split_values))
@@ -312,7 +319,7 @@ class SQLDatabase(Database):
 def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return (filter(None, values) for values
-            in izip_longest(fillvalue=fillvalue, *args))
+            in zip_longest(fillvalue=fillvalue, *args))
 
 
 def cursor_factory(**factory_options):
@@ -333,14 +340,14 @@ class Cursor(object):
         cur.execute(query)
     ```
     """
-    _cache = Queue.Queue(maxsize=5)
+    _cache = queue.Queue(maxsize=5)
 
     def __init__(self, cursor_type=mysql.cursors.Cursor, **options):
         super(Cursor, self).__init__()
 
         try:
             conn = self._cache.get_nowait()
-        except Queue.Empty:
+        except queue.Empty:
             conn = mysql.connect(**options)
         else:
             # Ping the connection before using it from the cache.
@@ -369,5 +376,5 @@ class Cursor(object):
         # Put it back on the queue
         try:
             self._cache.put_nowait(self.conn)
-        except Queue.Full:
+        except queue.Full:
             self.conn.close()
